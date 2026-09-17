@@ -156,19 +156,9 @@
       100% { transform: rotate(360deg) scale(1); }
     }
 
-    .orb.listening {
-      animation: floatPulse 1.2s ease-in-out infinite alternate;
-      box-shadow: 0 25px 55px rgba(217, 70, 239, 0.6);
-    }
-
     .orb.thinking {
       animation: floatPulse 1.6s ease-in-out infinite alternate;
       box-shadow: 0 20px 45px rgba(99, 102, 241, 0.55);
-    }
-
-    .orb.transcribing {
-      animation: floatPulse 1s ease-in-out infinite alternate;
-      box-shadow: 0 20px 45px rgba(244, 114, 182, 0.6);
     }
 
     .orb.speaking {
@@ -182,7 +172,6 @@
     }
 
     .icon-btn:disabled,
-    .mic-btn:disabled,
     .send-btn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
@@ -371,38 +360,10 @@
     .controls {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: center;
       padding: 0 10px;
       z-index: 10;
     }
-
-    .mic-btn-outer {
-      width: 76px;
-      height: 76px;
-      border-radius: 50%;
-      background: rgba(168, 85, 247, 0.15);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .mic-btn {
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      background: var(--purple-gradient);
-      border: none;
-      color: white;
-      font-size: 1.4rem;
-      cursor: pointer;
-      box-shadow: 0 10px 25px rgba(147, 51, 234, 0.4);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform 0.2s ease;
-    }
-
-    .mic-btn:active { transform: scale(0.92); }
   </style>
 </head>
 <body>
@@ -419,12 +380,12 @@
     </div>
 
     <div class="text-container">
-      <div class="prompt-text" id="transcript">"Tap the microphone or chat icon to start talking."</div>
+      <div class="prompt-text" id="transcript">"Type a message to start talking."</div>
       <div class="status-text" id="status-text">Idle</div>
     </div>
 
-    <!-- Text Chat Drawer Overlay -->
-    <div class="chat-drawer" id="chat-drawer">
+    <!-- Text Chat Drawer -->
+    <div class="chat-drawer open" id="chat-drawer">
       <div class="chat-history" id="chat-history"></div>
       <div class="chat-input-bar">
         <input type="text" class="chat-input" id="text-input" placeholder="Type a message..." aria-label="Message input" />
@@ -434,20 +395,16 @@
 
     <!-- Bottom Controls -->
     <div class="controls">
-      <button class="icon-btn" id="chat-toggle-btn" aria-label="Toggle text chat"><i class="fa-regular fa-comment"></i></button>
-      <div class="mic-btn-outer">
-        <button class="mic-btn" id="mic-btn" aria-label="Start or stop voice recording"><i class="fa-solid fa-microphone"></i></button>
-      </div>
       <button class="icon-btn" id="trash-btn" aria-label="Clear conversation"><i class="fa-regular fa-trash-can"></i></button>
     </div>
 
     <!-- Sliding Settings Modal -->
     <div class="api-modal" id="api-modal">
       <div class="modal-header-row">
-        <div class="modal-title">Setup AI Keys</div>
+        <div class="modal-title">Setup Your Assistant</div>
         <button class="icon-btn" id="close-settings-btn" style="width:36px; height:36px;" aria-label="Close settings"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <div class="modal-subtitle">Configure your API credentials to run the assistant natively.</div>
+      <div class="modal-subtitle">Paste your Google Gemini API key to get started.</div>
 
       <div class="input-group">
         <div class="input-label">
@@ -456,15 +413,6 @@
         </div>
         <input type="password" id="gemini-key-input" class="key-input" placeholder="AIzaSy..." />
         <div class="field-hint">Required for voice input, voice output, and chat.</div>
-      </div>
-
-      <div class="input-group">
-        <div class="input-label">
-          <span>OpenRouter Key (Optional)</span>
-          <a href="https://openrouter.ai/keys" target="_blank">Get Key</a>
-        </div>
-        <input type="password" id="openrouter-key-input" class="key-input" placeholder="sk-or-v1-..." />
-        <div class="field-hint">Backup chat provider if Gemini is unavailable.</div>
       </div>
 
       <button class="save-btn" id="save-keys-btn">Save & Continue</button>
@@ -476,29 +424,24 @@
 
     const modal = document.getElementById('api-modal');
     const geminiInput = document.getElementById('gemini-key-input');
-    const openrouterInput = document.getElementById('openrouter-key-input');
     const saveBtn = document.getElementById('save-keys-btn');
     const settingsBtn = document.getElementById('settings-btn');
     const closeSettingsBtn = document.getElementById('close-settings-btn');
-    
-    const micBtn = document.getElementById('mic-btn');
+
     const orb = document.getElementById('orb');
     const statusText = document.getElementById('status-text');
     const transcript = document.getElementById('transcript');
     const trashBtn = document.getElementById('trash-btn');
     const resetBtn = document.getElementById('reset-btn');
 
-    const chatDrawer = document.getElementById('chat-drawer');
-    const chatToggleBtn = document.getElementById('chat-toggle-btn');
     const textInput = document.getElementById('text-input');
     const sendBtn = document.getElementById('send-btn');
     const chatHistory = document.getElementById('chat-history');
 
     let history = [];
     let savedGeminiKey = localStorage.getItem('gemini_key') || "";
-    let savedOpenRouterKey = localStorage.getItem('openrouter_key') || "";
 
-    const ORB_STATES = ['listening', 'thinking', 'transcribing', 'speaking'];
+    const ORB_STATES = ['thinking', 'speaking'];
     function setOrbState(state) {
       ORB_STATES.forEach(s => orb.classList.remove(s));
       if (state) orb.classList.add(state);
@@ -507,7 +450,6 @@
     function setBusy(busy) {
       sendBtn.disabled = busy;
       textInput.disabled = busy;
-      micBtn.disabled = busy && !isRecording;
     }
 
     function saveHistory() {
@@ -538,11 +480,10 @@
       }
     }
 
-    if (!savedGeminiKey && !savedOpenRouterKey) {
+    if (!savedGeminiKey) {
       modal.classList.add('open');
     } else {
       geminiInput.value = savedGeminiKey;
-      openrouterInput.value = savedOpenRouterKey;
       statusText.innerText = "Ready";
     }
 
@@ -553,21 +494,18 @@
 
     saveBtn.onclick = () => {
       savedGeminiKey = geminiInput.value.trim();
-      savedOpenRouterKey = openrouterInput.value.trim();
 
-      if (!savedGeminiKey && !savedOpenRouterKey) {
-        showError("Please paste an API key first.");
+      if (!savedGeminiKey) {
+        showError("Please paste your Gemini API key first.");
         return;
       }
 
       localStorage.setItem('gemini_key', savedGeminiKey);
-      localStorage.setItem('openrouter_key', savedOpenRouterKey);
       modal.classList.remove('open');
       statusText.classList.remove('error');
       statusText.innerText = "Ready";
     };
 
-    chatToggleBtn.onclick = () => chatDrawer.classList.toggle('open');
     trashBtn.onclick = resetConversation;
     resetBtn.onclick = resetConversation;
 
@@ -575,12 +513,11 @@
       history = [];
       localStorage.removeItem('chat_history');
       chatHistory.innerHTML = "";
-      transcript.innerText = '"Tap the microphone or chat icon to start talking."';
+      transcript.innerText = '"Type a message to start talking."';
       statusText.classList.remove('error');
       statusText.innerText = "Ready";
       window.speechSynthesis.cancel();
       if (typeof stopStreamedAudio === 'function') stopStreamedAudio();
-      if (typeof isRecording !== 'undefined' && isRecording) stopRecording();
       setBusy(false);
       setOrbState(null);
     }
@@ -646,37 +583,6 @@
       throw lastErr;
     }
 
-    async function tryOpenRouter(userText, formattedHistory) {
-      const messages = [
-        { role: "system", content: "You are a warm, casual AI friend. Keep replies concise under 2 sentences." },
-        ...formattedHistory.map(h => ({
-          role: h.role === 'model' ? 'assistant' : 'user',
-          content: h.parts[0].text
-        })),
-        { role: "user", content: userText }
-      ];
-
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${savedOpenRouterKey}`
-        },
-        body: JSON.stringify({
-          model: "openrouter/free",
-          messages
-        })
-      });
-
-      if (!response.ok) {
-        const errBody = await response.text();
-        throw new Error(`${response.status}: ${errBody}`);
-      }
-
-      const data = await response.json();
-      return data.choices[0].message.content;
-    }
-
     async function handleUserMessage(userText) {
       if (!userText.trim()) return;
 
@@ -700,20 +606,10 @@
       }));
 
       let fullResponse = null;
-      let geminiErr = null;
 
       if (savedGeminiKey) {
         try {
           fullResponse = await tryGemini(userText, formattedHistory);
-        } catch (err) {
-          geminiErr = err;
-        }
-      }
-
-      if (fullResponse === null && savedOpenRouterKey) {
-        try {
-          if (savedGeminiKey) statusText.innerText = "Gemini unavailable, trying OpenRouter...";
-          fullResponse = await tryOpenRouter(userText, formattedHistory);
         } catch (err) {
           parseAPIError(err);
           setBusy(false);
@@ -723,8 +619,7 @@
       }
 
       if (fullResponse === null) {
-        if (geminiErr) parseAPIError(geminiErr);
-        else showError("No working provider. Check Settings.");
+        showError("No API key configured. Check Settings.");
         setBusy(false);
         setOrbState(null);
         return;
@@ -760,195 +655,6 @@
     textInput.onkeypress = (e) => {
       if (e.key === 'Enter') sendBtn.click();
     };
-
-    let mediaRecorder = null;
-    let audioChunks = [];
-    let isRecording = false;
-    let recordingInterval = null;
-    let recordingStartTime = 0;
-    let vadRafId = null;
-
-    function formatElapsed(ms) {
-      const totalSec = Math.floor(ms / 1000);
-      const m = Math.floor(totalSec / 60);
-      const s = totalSec % 60;
-      return `${m}:${s.toString().padStart(2, '0')}`;
-    }
-
-    function blobToBase64(blob) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    }
-
-    async function transcribeWithGemini(base64Audio, mimeType) {
-      const genAI = new GoogleGenAI({ apiKey: savedGeminiKey });
-      const response = await genAI.models.generateContent({
-        model: "gemini-3.5-flash-lite",
-        contents: [{
-          parts: [
-            { text: "Transcribe the spoken words in this audio exactly as spoken. Output ONLY the transcript text, nothing else. If there is no clear speech, output nothing." },
-            { inlineData: { mimeType, data: base64Audio } }
-          ]
-        }]
-      });
-      return (response.text || "").trim();
-    }
-
-    async function handleRecordedAudio(blob) {
-      if (!savedGeminiKey) {
-        showError("Gemini key required for voice transcription.");
-        return;
-      }
-      setBusy(true);
-      setOrbState('transcribing');
-      statusText.innerText = "Transcribing...";
-      try {
-        const base64Audio = await blobToBase64(blob);
-        const mimeType = blob.type || 'audio/webm';
-        const transcript = await transcribeWithGemini(base64Audio, mimeType);
-        if (!transcript) {
-          showError("Couldn't catch that. Try again.");
-          setBusy(false);
-          setOrbState(null);
-          return;
-        }
-        await handleUserMessage(transcript);
-      } catch (err) {
-        parseAPIError(err);
-        setBusy(false);
-        setOrbState(null);
-      }
-    }
-
-    async function startRecording() {
-      // Barge-in: stop any AI speech immediately when the user starts talking
-      stopStreamedAudio();
-      window.speechSynthesis.cancel();
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-        });
-        audioChunks = [];
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-        mediaRecorder.onstop = async () => {
-          stream.getTracks().forEach(t => t.stop());
-          const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-          await handleRecordedAudio(blob);
-        };
-        mediaRecorder.start();
-        isRecording = true;
-        setOrbState('listening');
-        statusText.classList.remove('error');
-        recordingStartTime = Date.now();
-        statusText.innerText = "Listening... 0:00 (tap mic to stop anytime)";
-        recordingInterval = setInterval(() => {
-          statusText.innerText = `Listening... ${formatElapsed(Date.now() - recordingStartTime)} (tap mic to stop anytime)`;
-        }, 500);
-
-        // Auto-stop: calibrate to this room's actual background noise first,
-        // then watch for speech followed by a pause — so a noisy room doesn't
-        // permanently look like "still talking" and get stuck until the max timer.
-        const ctx = getAudioContext();
-        const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 512;
-        source.connect(analyser);
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-        const CALIBRATION_MS = 350;
-        const SPEECH_MARGIN = 14; // how much louder than the room's noise floor counts as "speech"
-        const SILENCE_DURATION_MS = 1200;
-        const MAX_RECORD_MS = 20000;
-        let noiseFloor = 0;
-        let calibrationSamples = 0;
-        let hasSpoken = false;
-        let silenceStart = null;
-        const beganAt = Date.now();
-
-        const getRms = () => {
-          analyser.getByteTimeDomainData(dataArray);
-          let sumSquares = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            const v = dataArray[i] - 128;
-            sumSquares += v * v;
-          }
-          return Math.sqrt(sumSquares / dataArray.length);
-        };
-
-        const checkVolume = () => {
-          if (!isRecording) return;
-          const elapsed = Date.now() - beganAt;
-          const rms = getRms();
-
-          if (elapsed < CALIBRATION_MS) {
-            // Sample ambient noise before deciding what counts as "speech"
-            noiseFloor = (noiseFloor * calibrationSamples + rms) / (calibrationSamples + 1);
-            calibrationSamples++;
-            vadRafId = requestAnimationFrame(checkVolume);
-            return;
-          }
-
-          const threshold = noiseFloor + SPEECH_MARGIN;
-
-          if (rms > threshold) {
-            hasSpoken = true;
-            silenceStart = null;
-          } else if (hasSpoken) {
-            if (silenceStart === null) silenceStart = Date.now();
-            else if (Date.now() - silenceStart > SILENCE_DURATION_MS) {
-              stopRecording();
-              return;
-            }
-          }
-
-          if (Date.now() - beganAt > MAX_RECORD_MS) {
-            stopRecording();
-            return;
-          }
-
-          vadRafId = requestAnimationFrame(checkVolume);
-        };
-        vadRafId = requestAnimationFrame(checkVolume);
-      } catch (err) {
-        showError("Mic access denied or unavailable.");
-      }
-    }
-
-    function stopRecording() {
-      if (mediaRecorder && isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-        setOrbState(null);
-        if (recordingInterval) { clearInterval(recordingInterval); recordingInterval = null; }
-        if (vadRafId) { cancelAnimationFrame(vadRafId); vadRafId = null; }
-      }
-    }
-
-    if (!navigator.mediaDevices || !window.MediaRecorder) {
-      showError("Microphone recording not supported in this browser.");
-    } else {
-      micBtn.onclick = () => {
-        if (!savedGeminiKey && !savedOpenRouterKey) {
-          modal.classList.add('open');
-          return;
-        }
-        if (!savedGeminiKey) {
-          showError("Voice input needs a Gemini key. Check Settings.");
-          return;
-        }
-        if (!isRecording) {
-          startRecording();
-        } else {
-          stopRecording();
-        }
-      };
-    }
 
     let cachedVoices = [];
     window.speechSynthesis && (window.speechSynthesis.onvoiceschanged = () => {
